@@ -1,0 +1,53 @@
+#cmd
+java -Dwebdriver.chrome.driver="D:\Selenium\chromedriver.exe" -jar D:\Selenium\selenium-server-standalone-3.12.0.jar
+
+library(RSelenium)  
+library(rvest)
+remDr <- remoteDriver(browserName ="chrome") 
+remDr$open()   
+
+Data_all<- data.frame(Time = character (0), Content = character(0), Forward = character (0), Comment = character (0), Agree = character (0))
+
+last_height = 0
+repeat {   
+    remDr$executeScript("window.scrollTo(0,document.body.scrollHeight);", 
+                        list(remDr$findElement("css", "body")))
+    Sys.sleep(runif(7,10,18))
+    new_height = remDr$executeScript("return document.body.scrollHeight", 
+                                     list(remDr$findElement("css", "body")))
+    if(unlist(last_height) == unlist(new_height)) {
+        break
+    } else {
+        last_height = new_height
+    }
+}
+webpage <- read_html(remDr$getPageSource()[[1]][1])
+
+Time_raw<-webpage%>% html_nodes(xpath = '//*[@id="Pl_Official_MyProfileFeed__28"]/div/div/div[1]/div[4]/div[2]')%>% html_text()
+Time = gsub('\n\\s*(.*?)\\s*\\t\\s*(\\s.*?)', '\\1\\2', Time_raw, perl = T)
+Content_raw<-webpage%>% html_nodes(xpath = '//*[@id="Pl_Official_MyProfileFeed__28"]/div/div/div[1]/div[4]/div[4]')%>% html_text()
+#\\s{5,500}$, 匹配5-500个空格
+Content = gsub('\n\\s*(.*?)\\s{5,500}$', '\\1', Content_raw, perl = T)
+Forward<-webpage%>% html_nodes(xpath = '//*[@id="Pl_Official_MyProfileFeed__28"]/div/div/div[2]/div/ul/li[2]/a/span/span/span/em[2]')%>% html_text()
+Comment<-webpage%>% html_nodes(xpath = '//*[@id="Pl_Official_MyProfileFeed__28"]/div/div/div[2]/div/ul/li[3]/a/span/span/span/em[2]')%>% html_text()
+Agree<-webpage%>% html_nodes(xpath = '//*[@id="Pl_Official_MyProfileFeed__28"]/div/div/div[2]/div/ul/li[4]/a/span/span/span/em[2]')%>% html_text()
+
+#暂时不需要，变成“转发”了
+if(length(Time)!= length(Forward)){
+x<- sprintf('//*[@id="Pl_Official_MyProfileFeed__28"]/div/div[%d]/div[2]/div/ul/li[2]/a/span/span/span/em[2]',1:length(Time))
+for (i in 1:length(Time)) {
+if (webpage %>% html_nodes(xpath=x[i]) %>% length!=0){
+Forward[i]<-webpage %>% html_nodes(xpath= x[i]) %>% html_text()}
+else {Forward[i]<- 0}
+}
+}
+
+
+Data_temp<- cbind(Time, Content, Forward, Comment, Agree)
+Data_all <- rbind(Data_all, Data_temp)
+
+#xpath only for page 1, for page2 it is //*[@id="Pl_Official_MyProfileFeed__28"]/div/div[47]/div/a[2]
+xpath<- '//*[@id="Pl_Official_MyProfileFeed__28"]/div/div[47]/div/a'
+btn <- remDr$findElement(using = 'xpath', value = xpath)
+btn$clickElement()
+Sys.sleep(10)
